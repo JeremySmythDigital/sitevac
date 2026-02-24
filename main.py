@@ -964,3 +964,13 @@ async def success_page(request: Request):
       setTimeout(() => window.location.href = "/", 1500);
     </script>
     </body></html>"""
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page():
+    with open("templates/privacy.html") as f:
+        return f.read()
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page():
+    with open("templates/terms.html") as f:
+        return f.read()
