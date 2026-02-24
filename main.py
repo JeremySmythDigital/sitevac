@@ -146,10 +146,10 @@ def emit_metric(event: str, **fields):
     print(json.dumps(payload, ensure_ascii=False))
 
 # ── Config ────────────────────────────────────────────────────────────────────
-PRICE_MONTHLY   = "price_1T4J8h992UMuCHtuW1ypH59D"
-PRICE_ONETIME   = "price_1T4J9w992UMuCHtueZYNHftv"
-SUCCESS_URL     = os.getenv("BASE_URL", "http://localhost:8000") + "/success?session_id={CHECKOUT_SESSION_ID}"
-CANCEL_URL      = os.getenv("BASE_URL", "http://localhost:8000") + "/"
+PRICE_MONTHLY   = "price_1T4Oaw9suOxAfgqh7CiMVv2P"
+PRICE_ONETIME   = "price_1T4ObN9suOxAfgqhg3pUPxLY"
+SUCCESS_URL     = os.getenv("BASE_URL") + "/success?session_id={CHECKOUT_SESSION_ID}"
+CANCEL_URL      = os.getenv("BASE_URL") + "/"
 MONTHLY_PRICE_USD = 7
 LIFETIME_PRICE_USD = 29
 LIFETIME_TOTAL = 50
