@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteVac — Flatten Any Site for AI</title>
+<meta name="description" content="Scrape any docs or wiki site into a single AI-ready file. Perfect for feeding documentation into Claude, ChatGPT, or any LLM.">
+
+<!-- Carbon Ads (dev-focused, unobtrusive) — replace with your Carbon zone ID -->
+<!-- <script async type="text/javascript" src="//cdn.carbonads.com/carbon.js?serve=YOUR_ZONE_ID&placement=sitevacio" id="_carbonads_js"></script> -->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0a0b;
+  --surface:   #111114;
+  --surface2:  #18181d;
+  --border:    #25252e;
+  --border2:   #32323e;
+  --text:      #e8e8f0;
+  --muted:     #6b6b80;
+  --accent:    #5b7bff;
+  --accent2:   #7c3aed;
+  --success:   #10b981;
+  --warning:   #f59e0b;
+  --danger:    #ef4444;
+  --mono:      'Space Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+}
+
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Grid bg texture ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(91,123,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91,123,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Layout ── */
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* ── Header ── */
+header {
+  padding: 3rem 0 0;
+  text-align: center;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+.logo-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.logo-text {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 1.05rem;
+  font-weight: 300;
+  max-width: 500px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+
+/* ── Ad slot (Carbon) ── */
+#carbonads {
+  margin: 0 auto 2rem;
+  display: flex;
+  justify-content: center;
+}
+#carbonads a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  font-size: 0.82rem;
+  color: var(--muted);
+  transition: border-color 0.2s;
+  max-width: 340px;
+}
+#carbonads a:hover { border-color: var(--border2); }
+#carbonads img { width: 130px; height: auto; border-radius: 4px; }
+
+/* ── Pro badge banner ── */
+.pro-banner {
+  display: none;
+  background: linear-gradient(135deg, rgba(91,123,255,0.12), rgba(124,58,237,0.12));
+  border: 1px solid rgba(91,123,255,0.3);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #a5b4fc;
+  margin-bottom: 1.5rem;
+}
+.pro-banner.visible { display: block; }
+
+/* ── Main card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(91,123,255,0.4), transparent);
+}
+
+/* ── Form ── */
+.input-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.url-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.url-input::placeholder { color: var(--muted); }
+.url-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91,123,255,0.12);
+}
+
+.go-btn {
+  padding: 0.85rem 1.75rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+.go-btn:hover { opacity: 0.9; }
+.go-btn:active { transform: scale(0.98); }
+.go-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Options row ── */
+.options-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.option-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.option-group label { cursor: pointer; user-select: none; }
+
+select, input[type="radio"] { accent-color: var(--accent); }
+select {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.limit-badge {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+}
+.limit-badge span { color: var(--warning); font-weight: 600; }
+
+/* ── Progress area ── */
+#progress-area {
+  display: none;
+}
+#progress-area.visible { display: block; }
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.progress-header .count {
+  font-family: var(--mono);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.progress-bar-wrap {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  height: 180px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  scroll-behavior: smooth;
+}
+.log-line { color: var(--muted); }
+.log-line.success { color: var(--success); }
+.log-line.skip    { color: var(--danger); opacity: 0.7; }
+
+/* ── Done state ── */
+#done-area {
+  display: none;
+}
+#done-area.visible { display: block; }
+
+.done-card {
+  background: rgba(16,185,129,0.06);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+}
+.done-card h3 {
+  color: var(--success);
+  font-size: 1.1rem;
+  margin-bottom: 0.4rem;
+}
+.done-card p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+
+.download-btns {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.dl-btn {
+  padding: 0.7rem 1.4rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-block;
+}
+.dl-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+}
+.dl-btn.primary:hover { opacity: 0.9; }
+.dl-btn.secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border2);
+}
+.dl-btn.secondary:hover { border-color: var(--border2); background: #222; }
+
+/* ── Pricing section ── */
+.pricing {
+  margin: 2rem 0;
+}
+.pricing h2 {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+.pricing p.lead {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin-bottom: 1.75rem;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 600px) {
+  .plan-grid { grid-template-columns: 1fr; }
+  .input-row { flex-direction: column; }
+}
+
+.plan {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  position: relative;
+}
+.plan.featured {
+  border-color: rgba(91,123,255,0.45);
+  background: linear-gradient(160deg, rgba(91,123,255,0.06), var(--surface));
+}
+.plan-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+}
+.plan-name {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.plan-price {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+.plan-price sub { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
+.plan-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+.plan-features {
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.plan-features li::before { content: '✓ '; color: var(--success); }
+.plan-features li.no::before { content: '✗ '; color: var(--border2); }
+.plan-btn {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.plan-btn.free {
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border2);
+}
+.plan-btn.paid {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+}
+.plan-btn.paid:hover { opacity: 0.9; }
+
+/* ── How it works ── */
+.how {
+  margin: 2rem 0 1rem;
+}
+.how h2 {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 600px) { .steps { grid-template-columns: 1fr; } }
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.step-num {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+.step h4 { font-size: 0.92rem; margin-bottom: 0.35rem; }
+.step p  { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+/* ── Footer ── */
+footer {
+  text-align: center;
+  padding: 2rem 0 3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+footer a { color: var(--muted); text-decoration: underline; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Animations ── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: var(--success);
+  border-radius: 50%;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+  vertical-align: middle;
+  margin-right: 0.3rem;
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🌀</div>
+      <span class="logo-text">SiteVac</span>
+    </div>
+    <h1>Flatten any site<br>into one <em>AI-ready</em> file</h1>
+    <p class="subtitle">Paste a docs or wiki URL. SiteVac crawls every page and stitches them into a single file you can drop straight into any AI.</p>
+  </header>
+
+  <!-- Carbon Ad (unobtrusive, dev-focused) -->
+  <!-- Uncomment after getting Carbon Ads approval:
+  <div id="carbonads-wrap" style="text-align:center;margin-bottom:1.5rem">
+    <script async type="text/javascript" src="//cdn.carbonads.com/carbon.js?serve=YOUR_ID&placement=sitevacio" id="_carbonads_js"></script>
+  </div>
+  -->
+
+  <!-- Pro banner (shown when logged in) -->
+  <div class="pro-banner" id="pro-banner">
+    ⚡ Pro plan active — scrape up to 200 pages per job
+  </div>
+
+  <!-- Main scraper card -->
+  <div class="card">
+    <div class="input-row">
+      <input
+        type="url"
+        class="url-input"
+        id="url-input"
+        placeholder="https://deepwiki.com/musistudio/claude-code-router/"
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <button class="go-btn" id="go-btn" onclick="startScrape()">Vacuum →</button>
+    </div>
+
+    <div class="options-row">
+      <div class="option-group">
+        <label>Format:</label>
+        <select id="fmt-select">
+          <option value="txt" selected>TXT — best for AI</option>
+          <option value="md">Markdown</option>
+          <option value="html">HTML (with copy button)</option>
+        </select>
+      </div>
+      <div class="limit-badge" id="limit-badge">
+        Free: <span id="page-limit-display">10</span> pages max
+        &nbsp;·&nbsp; <a href="#pricing" style="color:var(--accent);text-decoration:none">Go Pro →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress area -->
+  <div class="card" id="progress-area">
+    <div class="progress-header">
+      <span><span class="live-dot"></span> Scraping…</span>
+      <span class="count"><span id="page-count">0</span> / <span id="page-max">10</span> pages</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="log-box" id="log-box"></div>
+  </div>
+
+  <!-- Done area -->
+  <div id="done-area">
+    <div class="done-card">
+      <h3>✅ Done! <span id="done-count"></span> pages scraped</h3>
+      <p>Your file is ready. Download it and paste the contents into Claude, ChatGPT, or any AI.</p>
+      <div class="download-btns">
+        <a class="dl-btn primary" id="dl-btn" href="#" download>⬇ Download File</a>
+        <button class="dl-btn secondary" onclick="resetForm()">Scrape another →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="how">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h4>Paste a URL</h4>
+        <p>Any docs site, DeepWiki, ReadTheDocs, GitHub wiki, or plain website.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h4>SiteVac crawls</h4>
+        <p>Follows every link under that URL prefix, strips nav/boilerplate, extracts clean text.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h4>One file, paste-ready</h4>
+        <p>Download a single TXT, Markdown, or HTML file. Select-all → copy → paste into any AI.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing -->
+  <div class="pricing" id="pricing">
+    <h2>Simple pricing</h2>
+    <p class="lead">Start free. Go Pro when you need more pages.</p>
+    <div class="plan-grid">
+
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0</div>
+        <div class="plan-desc">Great for quick lookups and small docs sites.</div>
+        <ul class="plan-features">
+          <li>10 pages per scrape</li>
+          <li>TXT, MD, HTML output</li>
+          <li>Unlimited scrapes</li>
+          <li class="no">No bulk exports</li>
+          <li class="no">No priority speed</li>
+        </ul>
+        <button class="plan-btn free" disabled>Current plan</button>
+      </div>
+
+      <div class="plan featured">
+        <div class="plan-badge">Most Popular</div>
+        <div class="plan-name">Pro Monthly</div>
+        <div class="plan-price">$7<sub>/mo</sub></div>
+        <div class="plan-desc">For developers who live in docs and feed AI regularly.</div>
+        <ul class="plan-features">
+          <li>200 pages per scrape</li>
+          <li>TXT, MD, HTML output</li>
+          <li>Unlimited scrapes</li>
+          <li>Priority scrape speed</li>
+          <li class="no">Cancel anytime</li>
+        </ul>
+        <button class="plan-btn paid" onclick="checkout('monthly')">Get Pro Monthly</button>
+      </div>
+
+      <div class="plan">
+        <div class="plan-name">Pro Lifetime</div>
+        <div class="plan-price">$19<sub> once</sub></div>
+        <div class="plan-desc">Pay once, use forever. Best value if you use it regularly.</div>
+        <ul class="plan-features">
+          <li>200 pages per scrape</li>
+          <li>TXT, MD, HTML output</li>
+          <li>Unlimited scrapes</li>
+          <li>Priority scrape speed</li>
+          <li>No recurring charges</li>
+        </ul>
+        <button class="plan-btn paid" onclick="checkout('onetime')">Get Lifetime Access</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>SiteVac — made for AI builders &nbsp;·&nbsp;
+       <a href="https://github.com/yourusername/sitevac" target="_blank">Open source</a> &nbsp;·&nbsp;
+       Hosted free on <a href="https://render.com" target="_blank">Render</a>
+    </p>
+    <p style="margin-top:0.5rem;font-size:0.72rem;opacity:0.5">
+      Respectful scraping: 0.4s delay between requests. Don't use on sites that prohibit it.
+    </p>
+  </footer>
+
+</div><!-- /container -->
+
+
+<script>
+let currentJobId = null;
+let isProUser = localStorage.getItem('sitevac_pro') === '1';
+
+// Show pro state
+if (isProUser) {
+  document.getElementById('pro-banner').classList.add('visible');
+  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
+  document.getElementById('page-limit-display').textContent = '200';
+}
+
+// Handle ?session_id= from Stripe success
+if (location.search.includes('session_id=')) {
+  localStorage.setItem('sitevac_pro', '1');
+  isProUser = true;
+  document.getElementById('pro-banner').classList.add('visible');
+  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
+  history.replaceState(null,'','/');
+}
+
+async function startScrape() {
+  const url = document.getElementById('url-input').value.trim();
+  const fmt = document.getElementById('fmt-select').value;
+
+  if (!url || !url.startsWith('http')) {
+    document.getElementById('url-input').style.borderColor = 'var(--danger)';
+    setTimeout(() => document.getElementById('url-input').style.borderColor = '', 1200);
+    return;
+  }
+
+  // Reset UI
+  document.getElementById('go-btn').disabled = true;
+  document.getElementById('done-area').classList.remove('visible');
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('page-count').textContent = '0';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-area').classList.add('visible');
+
+  // Start job
+  let res;
+  try {
+    res = await fetch('/api/scrape', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url,
+        format: fmt,
+        pro_token: isProUser ? localStorage.getItem('sitevac_email') : null
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+  } catch(e) {
+    addLog('✗ Error: ' + e.message, 'skip');
+    document.getElementById('go-btn').disabled = false;
+    return;
+  }
+
+  const data = await res.json();
+  currentJobId = data.job_id;
+  const maxPages = data.max_pages;
+  document.getElementById('page-max').textContent = maxPages;
+
+  // Stream SSE progress
+  const evtSource = new EventSource(`/api/progress/${currentJobId}`);
+
+  evtSource.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'log') {
+      const cls = msg.msg.startsWith('✓') ? 'success' : msg.msg.startsWith('✗') ? 'skip' : '';
+      addLog(msg.msg, cls);
+    }
+
+    if (msg.type === 'status') {
+      document.getElementById('page-count').textContent = msg.count;
+      const pct = Math.min(100, (msg.count / msg.max) * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+    }
+
+    if (msg.type === 'done') {
+      evtSource.close();
+      showDone(msg.count, currentJobId, fmt);
+    }
+
+    if (msg.type === 'error') {
+      evtSource.close();
+      addLog('✗ ' + msg.msg, 'skip');
+      document.getElementById('go-btn').disabled = false;
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    document.getElementById('go-btn').disabled = false;
+  };
+}
+
+function addLog(msg, cls='') {
+  const box = document.getElementById('log-box');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + cls;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function showDone(count, jobId, fmt) {
+  document.getElementById('go-btn').disabled = false;
+  document.getElementById('done-count').textContent = count;
+  const dlBtn = document.getElementById('dl-btn');
+  dlBtn.href = `/api/download/${jobId}`;
+  dlBtn.download = `sitevac_dump.${fmt}`;
+  document.getElementById('done-area').classList.add('visible');
+  document.getElementById('done-area').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+  // Show upsell if free user hit limit
+  if (!isProUser && count >= 10) {
+    addLog('💡 Hit the 10-page limit — upgrade to Pro to scrape up to 200 pages', '');
+  }
+}
+
+function resetForm() {
+  currentJobId = null;
+  document.getElementById('progress-area').classList.remove('visible');
+  document.getElementById('done-area').classList.remove('visible');
+  document.getElementById('url-input').value = '';
+  document.getElementById('url-input').focus();
+}
+
+async function checkout(plan) {
+  try {
+    const res = await fetch(`/api/checkout?plan=${plan}`, {method: 'POST'});
+    if (!res.ok) {
+      alert('Stripe not configured yet — check back soon!');
+      return;
+    }
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  } catch(e) {
+    alert('Payment unavailable right now.');
+  }
+}
+
+// Allow Enter key in URL input
+document.getElementById('url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startScrape();
+});
+</script>
+
+</body>
+</html>
