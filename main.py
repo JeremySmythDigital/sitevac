@@ -829,6 +829,23 @@ async def get_pricing():
     sold = await get_lifetime_sold()
     return _lifetime_pricing_payload(sold)
 
+@app.post("/api/check-pro")
+async def check_pro(request: Request):
+    """Let returning customers unlock Pro by entering their email."""
+    body = await request.json()
+    email = (body.get("email") or "").strip().lower()
+    if not email:
+        return JSONResponse({"pro": False})
+    if supabase:
+        try:
+            res = supabase.table("pro_users").select("email,active").eq("email", email).eq("active", True).execute()
+            if res.data:
+                return JSONResponse({"pro": True})
+        except Exception as e:
+            print(f"check-pro error: {e}")
+    return JSONResponse({"pro": False})
+
+
 @app.post("/api/checkout")
 async def create_checkout(plan: str = Query(...)):
     if not stripe.api_key:
