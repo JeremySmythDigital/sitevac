@@ -146,10 +146,10 @@ def emit_metric(event: str, **fields):
     print(json.dumps(payload, ensure_ascii=False))
 
 # ── Config ────────────────────────────────────────────────────────────────────
-PRICE_MONTHLY   = "price_1T4Oaw9suOxAfgqh7CiMVv2P"
-PRICE_ONETIME   = "price_1T4ObN9suOxAfgqhg3pUPxLY"
-SUCCESS_URL     = os.getenv("BASE_URL") + "/success?session_id={CHECKOUT_SESSION_ID}"
-CANCEL_URL      = os.getenv("BASE_URL") + "/"
+PRICE_MONTHLY   = "price_1T4J8h992UMuCHtuW1ypH59D"
+PRICE_ONETIME   = "price_1T4J9w992UMuCHtueZYNHftv"
+SUCCESS_URL     = os.getenv("BASE_URL", "http://localhost:8000") + "/success?session_id={CHECKOUT_SESSION_ID}"
+CANCEL_URL      = os.getenv("BASE_URL", "http://localhost:8000") + "/"
 MONTHLY_PRICE_USD = 7
 LIFETIME_PRICE_USD = 29
 LIFETIME_TOTAL = 50
@@ -323,31 +323,6 @@ async def mark_webhook_session_processed(session_id: str) -> bool:
         raise HTTPException(503, "Failed to persist webhook idempotency state")
     rows = resp.json()
     return bool(rows)
-
-
-async def save_pro_user(email: str, stripe_customer_id: str, plan: str) -> None:
-    """Upsert a pro user into Supabase after successful payment."""
-    if not _has_supabase():
-        return
-    url = f"{SUPABASE_URL}/rest/v1/pro_users"
-    headers = _supabase_headers()
-    headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
-    payload = [{"email": email, "stripe_customer_id": stripe_customer_id, "plan": plan, "active": True}]
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        await client.post(url, headers=headers, params={"on_conflict": "email"}, content=json.dumps(payload))
-
-
-async def is_pro_user(email: str) -> bool:
-    """Check if an email has an active pro record in Supabase."""
-    if not email or not _has_supabase():
-        return False
-    url = f"{SUPABASE_URL}/rest/v1/pro_users"
-    params = {"email": f"eq.{email}", "active": "eq.true", "select": "email"}
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(url, headers=_supabase_headers(), params=params)
-    if resp.status_code >= 400:
-        return False
-    return bool(resp.json())
 
 # ── Scraper logic (same as CLI script) ───────────────────────────────────────
 
@@ -709,11 +684,15 @@ async def start_scrape(body: ScrapeRequest, request: Request):
     if not url.startswith(("http://","https://")):
         raise HTTPException(400, "URL must start with http:// or https://")
 
-    # Determine page limit — fast Supabase lookup (email as token)
+    # Determine page limit
     is_pro = False
     if body.pro_token:
+        # Verify token against Stripe (simplified — in prod use session/JWT)
         try:
-            is_pro = await is_pro_user(body.pro_token)
+            customer = stripe.Customer.list(email=body.pro_token, limit=1)
+            if customer.data:
+                subs = stripe.Subscription.list(customer=customer.data[0].id, status="active")
+                is_pro = bool(subs.data)
         except Exception:
             pass
 
@@ -891,20 +870,11 @@ async def stripe_webhook(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
     except Exception:
         raise HTTPException(400, "Invalid signature")
+    # Handle completed checkout — in prod, save to DB and issue JWT/token
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
-        session_id = session_obj.get("id")
-        customer_email = session_obj.get("customer_details", {}).get("email", "") or session_obj.get("customer_email", "")
-        customer_id = session_obj.get("customer", "")
-        plan = "monthly" if session_obj.get("mode") == "subscription" else "lifetime"
-
-        # Always save the pro user regardless of plan
-        if customer_email:
-            await save_pro_user(customer_email, customer_id, plan)
-            emit_metric("pro_user_saved", email=customer_email, plan=plan, session_id=session_id)
-
-        # Extra lifetime-specific handling (counter + idempotency)
         if _is_lifetime_session_completed(session_obj):
+            session_id = session_obj.get("id")
             if session_id:
                 inserted = await mark_webhook_session_processed(session_id)
                 if not inserted:
@@ -919,7 +889,7 @@ async def stripe_webhook(request: Request):
                     sold=pricing["lifetime_sold"],
                     total=pricing["lifetime_total"],
                     remaining=pricing["lifetime_remaining"],
-                    session_id=session_id,
+                    session_id=session_obj.get("id"),
                 )
             else:
                 emit_metric(
@@ -928,7 +898,7 @@ async def stripe_webhook(request: Request):
                     sold=pricing["lifetime_sold"],
                     total=pricing["lifetime_total"],
                     remaining=pricing["lifetime_remaining"],
-                    session_id=session_id,
+                    session_id=session_obj.get("id"),
                 )
     return {"ok": True}
 
@@ -940,31 +910,6 @@ async def index():
     with open("templates/index.html") as f:
         return f.read()
 
-@app.get("/success", response_class=HTMLResponse)
-async def success_page(request: Request):
-    session_id = request.query_params.get("session_id", "")
-    # Fetch email from Stripe so we can pass it to the frontend
-    customer_email = ""
-    if session_id and stripe.api_key:
-        try:
-            sess = stripe.checkout.Session.retrieve(session_id)
-            customer_email = (sess.get("customer_details") or {}).get("email", "") or sess.get("customer_email", "")
-        except Exception:
-            pass
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-    <body style="font-family:sans-serif;text-align:center;padding:4rem;background:#0f0f0f;color:#e0e0e0">
-    <h1 style="color:#7eb8f7">🎉 You're Pro!</h1>
-    <p style="margin-bottom:1.5rem">Your account is active. Redirecting you back…</p>
-    <script>
-      const email = {json.dumps(customer_email)};
-      if (email) {{
-        localStorage.setItem("sitevac_pro", "1");
-        localStorage.setItem("sitevac_email", email);
-      }}
-      setTimeout(() => window.location.href = "/", 1500);
-    </script>
-    </body></html>"""
-
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_page():
     with open("templates/privacy.html") as f:
@@ -974,3 +919,84 @@ async def privacy_page():
 async def terms_page():
     with open("templates/terms.html") as f:
         return f.read()
+
+@app.get("/disclaimer", response_class=HTMLResponse)
+async def disclaimer_page():
+    with open("templates/disclaimer.html") as f:
+        return f.read()
+
+@app.get("/aup", response_class=HTMLResponse)
+async def aup_page():
+    with open("templates/aup.html") as f:
+        return f.read()
+
+@app.get("/success", response_class=HTMLResponse)
+async def success_page(request: Request):
+    session_id = request.query_params.get("session_id", "")
+    customer_email = ""
+    if session_id and stripe.api_key:
+        try:
+            sess = stripe.checkout.Session.retrieve(session_id)
+            customer_email = (sess.get("customer_details") or {}).get("email", "") or sess.get("customer_email", "")
+        except Exception:
+            pass
+    email_json = json.dumps(customer_email)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>You're Pro — SiteVac</title>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'DM Sans', system-ui, sans-serif; background: #0a0a0b; color: #e8e8f0;
+         display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }}
+  .card {{ background: #111114; border: 1px solid #25252e; border-radius: 16px;
+           padding: 2.5rem 2rem; max-width: 440px; width: 100%; text-align: center; }}
+  h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
+  .sub {{ color: #6b6b80; font-size: 0.95rem; margin-bottom: 2rem; line-height: 1.5; }}
+  .email-row {{ display: flex; gap: 0.5rem; margin-bottom: 1rem; }}
+  input {{ flex: 1; background: #0a0a0b; border: 1px solid #32323e; border-radius: 8px;
+           padding: 0.75rem 1rem; color: #e8e8f0; font-size: 0.9rem; outline: none; }}
+  input:focus {{ border-color: #5b7bff; box-shadow: 0 0 0 3px rgba(91,123,255,0.12); }}
+  button {{ padding: 0.75rem 1.4rem; background: linear-gradient(135deg,#5b7bff,#7c3aed);
+            color: white; border: none; border-radius: 8px; font-weight: 600;
+            font-size: 0.9rem; cursor: pointer; white-space: nowrap; }}
+  button:hover {{ opacity: 0.9; }}
+  .note {{ font-size: 0.78rem; color: #6b6b80; margin-top: 0.75rem; }}
+  .err {{ color: #ef4444; font-size: 0.82rem; margin-top: 0.5rem; display: none; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎉 You're Pro!</h1>
+  <p class="sub">Confirm your email below to activate your Pro account on this and any device.</p>
+  <div class="email-row">
+    <input type="email" id="email-input" placeholder="your@email.com" value="">
+    <button onclick="activate()">Activate</button>
+  </div>
+  <p class="err" id="err">Please enter a valid email.</p>
+  <p class="note">This is the email you'll use to unlock Pro on any browser or device.</p>
+</div>
+<script>
+  // Pre-fill from Stripe if available
+  const stripeEmail = {email_json};
+  if (stripeEmail) document.getElementById('email-input').value = stripeEmail;
+
+  function activate() {{
+    const email = document.getElementById('email-input').value.trim();
+    if (!email || !email.includes('@')) {{
+      document.getElementById('err').style.display = 'block';
+      return;
+    }}
+    localStorage.setItem('sitevac_pro', '1');
+    localStorage.setItem('sitevac_email', email);
+    window.location.href = '/';
+  }}
+
+  // Allow Enter key
+  document.getElementById('email-input').addEventListener('keydown', e => {{
+    if (e.key === 'Enter') activate();
+  }});
+</script>
+</body>
+</html>"""
