@@ -505,48 +505,6 @@ footer {
 }
 footer a { color: var(--muted); text-decoration: underline; }
 
-.already-pro-row {
-  margin-top: 2rem;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.already-pro-row p { margin-bottom: 0.6rem; }
-.already-pro-inputs {
-  display: flex;
-  gap: 0.5rem;
-  max-width: 420px;
-  margin: 0 auto;
-  justify-content: center;
-}
-.already-pro-inputs input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  color: var(--text);
-  font-size: 0.85rem;
-  outline: none;
-  font-family: inherit;
-}
-.already-pro-inputs input:focus { border-color: var(--accent); }
-.already-pro-inputs button {
-  padding: 0.6rem 1.2rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: inherit;
-}
-.already-pro-inputs button:hover { border-color: var(--accent); color: var(--accent); }
-.unlock-msg { font-size: 0.8rem; min-height: 1.2rem; margin-top: 0.4rem; }
-.unlock-msg.ok { color: #4ade80; }
-.unlock-msg.err { color: #ef4444; }
-
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -592,7 +550,7 @@ footer a { color: var(--muted); text-decoration: underline; }
 
   <!-- Pro banner (shown when logged in) -->
   <div class="pro-banner" id="pro-banner">
-    ⚡ Pro plan active — scrape up to 500 pages per job
+    ⚡ Pro plan active — scrape up to 200 pages per job
   </div>
 
   <!-- Main scraper card -->
@@ -616,6 +574,7 @@ footer a { color: var(--muted); text-decoration: underline; }
           <option value="txt" selected>TXT — best for AI</option>
           <option value="md">Markdown</option>
           <option value="html">HTML (with copy button)</option>
+          <option value="pack">ZIP Pack — pre-chunked for GPT / Claude / JSONL</option>
         </select>
       </div>
       <div class="limit-badge" id="limit-badge">
@@ -697,7 +656,7 @@ footer a { color: var(--muted); text-decoration: underline; }
         <div class="plan-price">$7<sub>/mo</sub></div>
         <div class="plan-desc">For developers who live in docs and feed AI regularly.</div>
         <ul class="plan-features">
-          <li>500 pages per scrape</li>
+          <li>200 pages per scrape</li>
           <li>TXT, MD, HTML output</li>
           <li>Unlimited scrapes</li>
           <li>Priority scrape speed</li>
@@ -708,10 +667,10 @@ footer a { color: var(--muted); text-decoration: underline; }
 
       <div class="plan">
         <div class="plan-name">Pro Lifetime</div>
-        <div class="plan-price">$19<sub> once</sub></div>
+        <div class="plan-price">$29<sub> once</sub></div>
         <div class="plan-desc">Pay once, use forever. Best value if you use it regularly.</div>
         <ul class="plan-features">
-          <li>500 pages per scrape</li>
+          <li>200 pages per scrape</li>
           <li>TXT, MD, HTML output</li>
           <li>Unlimited scrapes</li>
           <li>Priority scrape speed</li>
@@ -721,28 +680,16 @@ footer a { color: var(--muted); text-decoration: underline; }
       </div>
 
     </div>
-
-    <!-- Already Pro unlock row -->
-    <div class="already-pro-row" id="already-pro-row">
-      <p>Already a Pro customer?</p>
-      <div class="already-pro-inputs">
-        <input type="email" id="unlock-email" placeholder="Enter your email to unlock Pro" autocomplete="email">
-        <button onclick="unlockPro()">Unlock</button>
-      </div>
-      <p class="unlock-msg" id="unlock-msg"></p>
-    </div>
   </div>
 
   <!-- Footer -->
   <footer>
-    <p>SiteVac &nbsp;·&nbsp;
-       <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp;
-       <a href="/terms">Terms of Service</a> &nbsp;·&nbsp;
-       <a href="/disclaimer">Disclaimer</a> &nbsp;·&nbsp;
-       <a href="/aup">Acceptable Use Policy</a>
+    <p>SiteVac — made for AI builders &nbsp;·&nbsp;
+       <a href="https://github.com/yourusername/sitevac" target="_blank">Open source</a> &nbsp;·&nbsp;
+       Hosted free on <a href="https://render.com" target="_blank">Render</a>
     </p>
     <p style="margin-top:0.5rem;font-size:0.72rem;opacity:0.5">
-      Only scrape sites you have permission to access. &nbsp;·&nbsp; 0.4s delay between requests.
+      Respectful scraping: 0.4s delay between requests. Don't use on sites that prohibit it.
     </p>
   </footer>
 
@@ -756,8 +703,8 @@ let isProUser = localStorage.getItem('sitevac_pro') === '1';
 // Show pro state
 if (isProUser) {
   document.getElementById('pro-banner').classList.add('visible');
-  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 500 pages max';
-  document.getElementById('page-limit-display').textContent = '500';
+  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
+  document.getElementById('page-limit-display').textContent = '200';
 }
 
 // Handle ?session_id= from Stripe success
@@ -765,51 +712,8 @@ if (location.search.includes('session_id=')) {
   localStorage.setItem('sitevac_pro', '1');
   isProUser = true;
   document.getElementById('pro-banner').classList.add('visible');
-  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 500 pages max';
+  document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
   history.replaceState(null,'','/');
-}
-
-async function unlockPro() {
-  const email = document.getElementById('unlock-email').value.trim();
-  const msg = document.getElementById('unlock-msg');
-  if (!email || !email.includes('@')) {
-    msg.textContent = 'Please enter a valid email.';
-    msg.className = 'unlock-msg err';
-    return;
-  }
-  msg.textContent = 'Checking...';
-  msg.className = 'unlock-msg';
-  try {
-    const res = await fetch('/api/check-pro', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email})
-    });
-    const data = await res.json();
-    if (data.pro) {
-      localStorage.setItem('sitevac_pro', '1');
-      localStorage.setItem('sitevac_email', email);
-      isProUser = true;
-      document.getElementById('pro-banner').classList.add('visible');
-      document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
-      document.getElementById('page-limit-display').textContent = '200';
-      document.getElementById('already-pro-row').style.display = 'none';
-      msg.textContent = '✅ Pro activated!';
-      msg.className = 'unlock-msg ok';
-    } else {
-      msg.textContent = 'No Pro account found for that email.';
-      msg.className = 'unlock-msg err';
-    }
-  } catch(e) {
-    msg.textContent = 'Something went wrong, please try again.';
-    msg.className = 'unlock-msg err';
-  }
-}
-
-// Hide unlock row if already pro
-if (isProUser) {
-  const row = document.getElementById('already-pro-row');
-  if (row) row.style.display = 'none';
 }
 
 async function startScrape() {
@@ -909,7 +813,7 @@ function showDone(count, jobId, fmt) {
 
   // Show upsell if free user hit limit
   if (!isProUser && count >= 10) {
-    addLog('💡 Hit the 10-page limit — upgrade to Pro to scrape up to 500 pages', '');
+    addLog('💡 Hit the 10-page limit — upgrade to Pro to scrape up to 200 pages', '');
   }
 }
 
