@@ -574,6 +574,7 @@ footer a { color: var(--muted); text-decoration: underline; }
           <option value="txt" selected>TXT — best for AI</option>
           <option value="md">Markdown</option>
           <option value="html">HTML (with copy button)</option>
+          <option value="pack">Pack (.zip) — clean + chunks</option>
         </select>
       </div>
       <div class="limit-badge" id="limit-badge">
@@ -603,6 +604,14 @@ footer a { color: var(--muted); text-decoration: underline; }
       <div class="download-btns">
         <a class="dl-btn primary" id="dl-btn" href="#" download>⬇ Download File</a>
         <button class="dl-btn secondary" onclick="resetForm()">Scrape another →</button>
+      </div>
+      <div id="job-summary" style="display:none;margin-top:1rem;padding:0.8rem 1rem;border:1px solid var(--border);border-radius:10px;background:#171717;text-align:left">
+        <div style="font-weight:600;margin-bottom:0.45rem">Job Summary</div>
+        <div id="sum-gpt-tokens" style="display:none;font-size:0.9rem;opacity:0.95"></div>
+        <div id="sum-claude-tokens" style="display:none;font-size:0.9rem;opacity:0.95"></div>
+        <div id="sum-gpt-chunks" style="display:none;font-size:0.9rem;opacity:0.95"></div>
+        <div id="sum-claude-chunks" style="display:none;font-size:0.9rem;opacity:0.95"></div>
+        <div id="sum-openclaw-chunks" style="display:none;font-size:0.9rem;opacity:0.95"></div>
       </div>
     </div>
   </div>
@@ -652,7 +661,7 @@ footer a { color: var(--muted); text-decoration: underline; }
       <div class="plan featured">
         <div class="plan-badge">Most Popular</div>
         <div class="plan-name">Pro Monthly</div>
-        <div class="plan-price">$7<sub>/mo</sub></div>
+        <div class="plan-price"><span id="monthly-price">$7</span><sub>/mo</sub></div>
         <div class="plan-desc">For developers who live in docs and feed AI regularly.</div>
         <ul class="plan-features">
           <li>200 pages per scrape</li>
@@ -666,8 +675,9 @@ footer a { color: var(--muted); text-decoration: underline; }
 
       <div class="plan">
         <div class="plan-name">Pro Lifetime</div>
-        <div class="plan-price">$19<sub> once</sub></div>
+        <div class="plan-price"><span id="lifetime-price">$29</span><sub> once</sub></div>
         <div class="plan-desc">Pay once, use forever. Best value if you use it regularly.</div>
+        <p id="lifetime-slots" style="margin-top:0.55rem;font-size:0.82rem;color:#9fb3c8">50 slots total</p>
         <ul class="plan-features">
           <li>200 pages per scrape</li>
           <li>TXT, MD, HTML output</li>
@@ -675,7 +685,7 @@ footer a { color: var(--muted); text-decoration: underline; }
           <li>Priority scrape speed</li>
           <li>No recurring charges</li>
         </ul>
-        <button class="plan-btn paid" onclick="checkout('onetime')">Get Lifetime Access</button>
+        <button class="plan-btn paid" id="lifetime-btn" onclick="checkout('onetime')">Get Lifetime Access</button>
       </div>
 
     </div>
@@ -698,6 +708,39 @@ footer a { color: var(--muted); text-decoration: underline; }
 <script>
 let currentJobId = null;
 let isProUser = localStorage.getItem('sitevac_pro') === '1';
+let pricingState = null;
+
+async function loadPricing() {
+  try {
+    const res = await fetch('/api/pricing');
+    if (!res.ok) return;
+    pricingState = await res.json();
+
+    const monthlyPrice = document.getElementById('monthly-price');
+    const lifetimePrice = document.getElementById('lifetime-price');
+    const lifetimeSlots = document.getElementById('lifetime-slots');
+    const lifetimeBtn = document.getElementById('lifetime-btn');
+
+    if (monthlyPrice && pricingState.monthly_price_usd != null) {
+      monthlyPrice.textContent = `$${pricingState.monthly_price_usd}`;
+    }
+    if (lifetimePrice && pricingState.lifetime_price_usd != null) {
+      lifetimePrice.textContent = `$${pricingState.lifetime_price_usd}`;
+    }
+    if (lifetimeSlots) {
+      lifetimeSlots.textContent = `${pricingState.lifetime_remaining} of ${pricingState.lifetime_total} lifetime slots left`;
+    }
+    if (lifetimeBtn) {
+      if (!pricingState.lifetime_available) {
+        lifetimeBtn.disabled = true;
+        lifetimeBtn.textContent = 'Sold Out';
+      } else {
+        lifetimeBtn.disabled = false;
+        lifetimeBtn.textContent = 'Get Lifetime Access';
+      }
+    }
+  } catch (_) {}
+}
 
 // Show pro state
 if (isProUser) {
@@ -776,7 +819,7 @@ async function startScrape() {
 
     if (msg.type === 'done') {
       evtSource.close();
-      showDone(msg.count, currentJobId, fmt);
+      showDone(msg, currentJobId, fmt);
     }
 
     if (msg.type === 'error') {
@@ -801,12 +844,59 @@ function addLog(msg, cls='') {
   box.scrollTop = box.scrollHeight;
 }
 
-function showDone(count, jobId, fmt) {
+function showDone(job, jobId, fmt) {
+  const count = job.count ?? 0;
   document.getElementById('go-btn').disabled = false;
   document.getElementById('done-count').textContent = count;
   const dlBtn = document.getElementById('dl-btn');
   dlBtn.href = `/api/download/${jobId}`;
-  dlBtn.download = `sitevac_dump.${fmt}`;
+  dlBtn.download = fmt === 'pack' ? 'sitevac_dump.zip' : `sitevac_dump.${fmt}`;
+  if (fmt === 'pack') {
+    dlBtn.textContent = '⬇ Download Pack (.zip)';
+  } else {
+    dlBtn.textContent = '⬇ Download File';
+  }
+
+  const summary = document.getElementById('job-summary');
+  const gptTokensRow = document.getElementById('sum-gpt-tokens');
+  const claudeTokensRow = document.getElementById('sum-claude-tokens');
+  const gptChunksRow = document.getElementById('sum-gpt-chunks');
+  const claudeChunksRow = document.getElementById('sum-claude-chunks');
+  const openclawChunksRow = document.getElementById('sum-openclaw-chunks');
+
+  gptTokensRow.style.display = 'none';
+  claudeTokensRow.style.display = 'none';
+  gptChunksRow.style.display = 'none';
+  claudeChunksRow.style.display = 'none';
+  openclawChunksRow.style.display = 'none';
+  summary.style.display = 'none';
+
+  if (job.gpt_tokens_est != null) {
+    gptTokensRow.textContent = `GPT tokens (est): ${job.gpt_tokens_est.toLocaleString()}`;
+    gptTokensRow.style.display = 'block';
+  }
+  if (job.claude_tokens_est != null) {
+    claudeTokensRow.textContent = `Claude tokens (est): ${job.claude_tokens_est.toLocaleString()}`;
+    claudeTokensRow.style.display = 'block';
+  }
+  if (job.chunks_gpt != null) {
+    gptChunksRow.textContent = `GPT chunks: ${job.chunks_gpt}`;
+    gptChunksRow.style.display = 'block';
+  }
+  if (job.chunks_claude != null) {
+    claudeChunksRow.textContent = `Claude chunks: ${job.chunks_claude}`;
+    claudeChunksRow.style.display = 'block';
+  }
+  if (job.chunks_openclaw != null) {
+    openclawChunksRow.textContent = `OpenClaw chunks: ${job.chunks_openclaw}`;
+    openclawChunksRow.style.display = 'block';
+  }
+  if (
+    gptTokensRow.style.display === 'block' || claudeTokensRow.style.display === 'block' ||
+    gptChunksRow.style.display === 'block' || claudeChunksRow.style.display === 'block' ||
+    openclawChunksRow.style.display === 'block'
+  ) summary.style.display = 'block';
+
   document.getElementById('done-area').classList.add('visible');
   document.getElementById('done-area').scrollIntoView({behavior: 'smooth', block: 'nearest'});
 
@@ -826,8 +916,20 @@ function resetForm() {
 
 async function checkout(plan) {
   try {
+    if (plan === 'onetime') {
+      if (!pricingState) await loadPricing();
+      if (pricingState && !pricingState.lifetime_available) {
+        alert('Lifetime slots are sold out.');
+        return;
+      }
+    }
     const res = await fetch(`/api/checkout?plan=${plan}`, {method: 'POST'});
     if (!res.ok) {
+      if (res.status === 409) {
+        alert('Lifetime slots are sold out.');
+        await loadPricing();
+        return;
+      }
       alert('Stripe not configured yet — check back soon!');
       return;
     }
@@ -842,6 +944,7 @@ async function checkout(plan) {
 document.getElementById('url-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') startScrape();
 });
+loadPricing();
 </script>
 
 </body>
