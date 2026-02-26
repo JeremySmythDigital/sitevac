@@ -215,6 +215,41 @@ def _supabase_headers() -> dict[str, str]:
 def _has_supabase() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
+async def has_pro_access(email: str) -> bool:
+    """
+    Determine whether an email currently has Pro access.
+    Primary source is Supabase `pro_users` (used by check-pro UX), with Stripe
+    subscription lookup as a fallback when Supabase isn't authoritative.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+
+    if _has_supabase():
+        try:
+            url = f"{SUPABASE_URL}/rest/v1/pro_users"
+            params = {"email": f"eq.{email}", "active": "eq.true", "select": "email"}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers=_supabase_headers(), params=params)
+            if resp.status_code < 400:
+                rows = resp.json()
+                if rows:
+                    return True
+        except Exception as e:
+            print(f"has_pro_access supabase error: {e}")
+
+    # Fallback for environments relying only on Stripe subscriptions.
+    try:
+        customer = stripe.Customer.list(email=email, limit=1)
+        if customer.data:
+            subs = stripe.Subscription.list(customer=customer.data[0].id, status="active")
+            if subs.data:
+                return True
+    except Exception as e:
+        print(f"has_pro_access stripe error: {e}")
+
+    return False
+
 async def _ensure_lifetime_counter_row() -> None:
     """Ensure lifetime_sold row exists so the atomic increment function can update it."""
     if not _has_supabase():
@@ -675,7 +710,7 @@ def build_html(visited, start_url):
 class ScrapeRequest(BaseModel):
     url: str
     format: str = "txt"
-    pro_token: Optional[str] = None  # Stripe customer token for pro users
+    pro_token: Optional[str] = None  # currently email from frontend
 
 @app.post("/api/scrape")
 async def start_scrape(body: ScrapeRequest, request: Request):
@@ -687,14 +722,7 @@ async def start_scrape(body: ScrapeRequest, request: Request):
     # Determine page limit
     is_pro = False
     if body.pro_token:
-        # Verify token against Stripe (simplified — in prod use session/JWT)
-        try:
-            customer = stripe.Customer.list(email=body.pro_token, limit=1)
-            if customer.data:
-                subs = stripe.Subscription.list(customer=customer.data[0].id, status="active")
-                is_pro = bool(subs.data)
-        except Exception:
-            pass
+        is_pro = await has_pro_access(body.pro_token)
 
     max_pages = PRO_PAGE_LIMIT if is_pro else FREE_PAGE_LIMIT
     client_ip = get_client_ip(request)
@@ -834,20 +862,7 @@ async def check_pro(request: Request):
     """Let returning customers unlock Pro by entering their email."""
     body = await request.json()
     email = (body.get("email") or "").strip().lower()
-    if not email:
-        return JSONResponse({"pro": False})
-    if not _has_supabase():
-        return JSONResponse({"pro": False})
-    try:
-        url = f"{SUPABASE_URL}/rest/v1/pro_users"
-        params = {"email": f"eq.{email}", "active": "eq.true", "select": "email"}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=_supabase_headers(), params=params)
-        rows = resp.json() if resp.status_code < 400 else []
-        return JSONResponse({"pro": bool(rows)})
-    except Exception as e:
-        print(f"check-pro error: {e}")
-        return JSONResponse({"pro": False})
+    return JSONResponse({"pro": await has_pro_access(email)})
 
 @app.post("/api/checkout")
 async def create_checkout(plan: str = Query(...)):

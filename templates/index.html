@@ -431,6 +431,15 @@ select {
   margin-bottom: 1.25rem;
   line-height: 1.5;
 }
+.lifetime-availability {
+  margin-top: 0.55rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.lifetime-availability strong {
+  color: var(--warning);
+  font-weight: 700;
+}
 .plan-features {
   list-style: none;
   font-size: 0.85rem;
@@ -711,7 +720,10 @@ footer a { color: var(--muted); text-decoration: underline; }
       <div class="plan">
         <div class="plan-name">Pro Lifetime</div>
         <div class="plan-price">$29<sub> once</sub></div>
-        <div class="plan-desc">Pay once, use forever. Best value if you use it regularly.</div>
+        <div class="plan-desc">
+          Pay once, use forever. Best value if you use it regularly.
+          <div class="lifetime-availability" id="lifetime-availability">Checking availability...</div>
+        </div>
         <ul class="plan-features">
           <li>200 pages per scrape</li>
           <li>TXT, MD, HTML output</li>
@@ -719,7 +731,7 @@ footer a { color: var(--muted); text-decoration: underline; }
           <li>Priority scrape speed</li>
           <li>No recurring charges</li>
         </ul>
-        <button class="plan-btn paid" onclick="checkout('onetime')">Get Lifetime Access</button>
+        <button class="plan-btn paid" id="lifetime-btn" onclick="checkout('onetime')">Get Lifetime Access</button>
       </div>
 
     </div>
@@ -931,10 +943,34 @@ async function checkout(plan) {
   }
 }
 
+async function loadPricing() {
+  const availabilityEl = document.getElementById('lifetime-availability');
+  const lifetimeBtn = document.getElementById('lifetime-btn');
+  if (!availabilityEl || !lifetimeBtn) return;
+  try {
+    const res = await fetch('/api/pricing');
+    if (!res.ok) throw new Error('pricing unavailable');
+    const data = await res.json();
+    const remaining = Number(data.lifetime_remaining ?? 0);
+    const total = Number(data.lifetime_total ?? 0);
+    availabilityEl.innerHTML = `<strong>${remaining}</strong> left out of <strong>${total}</strong>`;
+    if (!data.lifetime_available) {
+      lifetimeBtn.disabled = true;
+      lifetimeBtn.textContent = 'Lifetime Sold Out';
+      lifetimeBtn.style.opacity = '0.65';
+      lifetimeBtn.style.cursor = 'not-allowed';
+    }
+  } catch (e) {
+    availabilityEl.textContent = 'Availability updates at checkout.';
+  }
+}
+
 // Allow Enter key in URL input
 document.getElementById('url-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') startScrape();
 });
+
+loadPricing();
 </script>
 
 </body>
