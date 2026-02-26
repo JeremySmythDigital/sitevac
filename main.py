@@ -215,14 +215,38 @@ def _supabase_headers() -> dict[str, str]:
 def _has_supabase() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
-async def has_pro_access(email: str) -> bool:
+async def has_pro_access(token: str) -> bool:
     """
-    Determine whether an email currently has Pro access.
+    Determine whether a client token currently has Pro access.
+    Token can be either:
+    - an email address (for Supabase/Stripe customer checks), or
+    - a Stripe Checkout session id (cs_...) from success redirect.
     Primary source is Supabase `pro_users` (used by check-pro UX), with Stripe
     subscription lookup as a fallback when Supabase isn't authoritative.
     """
-    email = (email or "").strip().lower()
-    if not email:
+    token = (token or "").strip()
+    if not token:
+        return False
+
+    # Stripe checkout-session token path (lets paid users unlock without
+    # entering email again after success redirect).
+    if token.startswith("cs_"):
+        try:
+            session = stripe.checkout.Session.retrieve(token)
+            session_obj = dict(session) if hasattr(session, "to_dict") else session
+            if _is_lifetime_session_completed(session_obj):
+                return True
+            mode = (session_obj.get("mode") or "").strip().lower()
+            status = (session_obj.get("status") or "").strip().lower()
+            payment_status = (session_obj.get("payment_status") or "").strip().lower()
+            if mode == "subscription" and status == "complete" and payment_status in ("paid", "no_payment_required"):
+                return True
+        except Exception as e:
+            print(f"has_pro_access session error: {e}")
+        return False
+
+    email = token.lower()
+    if "@" not in email:
         return False
 
     if _has_supabase():

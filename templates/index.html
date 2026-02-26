@@ -765,6 +765,14 @@ footer a { color: var(--muted); text-decoration: underline; }
 let currentJobId = null;
 let isProUser = localStorage.getItem('sitevac_pro') === '1';
 
+function getProToken() {
+  const email = (localStorage.getItem('sitevac_email') || '').trim().toLowerCase();
+  if (email && email.includes('@')) return email;
+  const sessionId = (localStorage.getItem('sitevac_checkout_session') || '').trim();
+  if (sessionId.startsWith('cs_')) return sessionId;
+  return null;
+}
+
 // Show pro state
 if (isProUser) {
   document.getElementById('pro-banner').classList.add('visible');
@@ -775,11 +783,15 @@ if (isProUser) {
 }
 
 // Handle ?session_id= from Stripe success
-if (location.search.includes('session_id=')) {
+const urlParams = new URLSearchParams(location.search);
+const checkoutSessionId = (urlParams.get('session_id') || '').trim();
+if (checkoutSessionId.startsWith('cs_')) {
+  localStorage.setItem('sitevac_checkout_session', checkoutSessionId);
   localStorage.setItem('sitevac_pro', '1');
   isProUser = true;
   document.getElementById('pro-banner').classList.add('visible');
   document.getElementById('limit-badge').innerHTML = '⚡ Pro: 200 pages max';
+  document.getElementById('page-limit-display').textContent = '200';
   history.replaceState(null,'','/');
 }
 
@@ -847,7 +859,7 @@ async function startScrape() {
       body: JSON.stringify({
         url,
         format: fmt,
-        pro_token: isProUser ? localStorage.getItem('sitevac_email') : null
+        pro_token: isProUser ? getProToken() : null
       })
     });
     if (!res.ok) throw new Error(await res.text());
@@ -861,6 +873,12 @@ async function startScrape() {
   currentJobId = data.job_id;
   const maxPages = data.max_pages;
   document.getElementById('page-max').textContent = maxPages;
+
+  if (isProUser && !data.is_pro) {
+    addLog('⚠ Pro could not be verified for this scrape. Enter your Pro email and click Unlock once.', 'skip');
+    const proRow = document.getElementById('already-pro-row');
+    if (proRow) proRow.style.display = 'block';
+  }
 
   // Stream SSE progress
   const evtSource = new EventSource(`/api/progress/${currentJobId}`);
