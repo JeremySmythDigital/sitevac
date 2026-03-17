@@ -24,8 +24,8 @@
   --border2:   #32323e;
   --text:      #e8e8f0;
   --muted:     #6b6b80;
-  --accent:    #5b7bff;
-  --accent2:   #7c3aed;
+  --accent:    #10b981;
+  --accent2:   #059669;
   --success:   #10b981;
   --warning:   #f59e0b;
   --danger:    #ef4444;
@@ -48,8 +48,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(91,123,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(91,123,255,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(16,185,129,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16,185,129,0.04) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
   z-index: 0;
@@ -101,7 +101,7 @@ h1 {
 }
 h1 em {
   font-style: normal;
-  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -142,13 +142,13 @@ h1 em {
 /* ── Pro badge banner ── */
 .pro-banner {
   display: none;
-  background: linear-gradient(135deg, rgba(91,123,255,0.12), rgba(124,58,237,0.12));
-  border: 1px solid rgba(91,123,255,0.3);
+  background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.12));
+  border: 1px solid rgba(16,185,129,0.3);
   border-radius: 8px;
   padding: 0.75rem 1.25rem;
   text-align: center;
   font-size: 0.88rem;
-  color: #a5b4fc;
+  color: #6ee7b7;
   margin-bottom: 1.5rem;
 }
 .pro-banner.visible { display: block; }
@@ -168,7 +168,7 @@ h1 em {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(91,123,255,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(16,185,129,0.4), transparent);
 }
 
 /* ── Form ── */
@@ -193,7 +193,7 @@ h1 em {
 .url-input::placeholder { color: var(--muted); }
 .url-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91,123,255,0.12);
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
 }
 
 .go-btn {
@@ -392,8 +392,8 @@ select {
   position: relative;
 }
 .plan.featured {
-  border-color: rgba(91,123,255,0.45);
-  background: linear-gradient(160deg, rgba(91,123,255,0.06), var(--surface));
+  border-color: rgba(16,185,129,0.45);
+  background: linear-gradient(160deg, rgba(16,185,129,0.06), var(--surface));
 }
 .plan-badge {
   position: absolute;
