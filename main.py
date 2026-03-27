@@ -182,6 +182,14 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 app = FastAPI(title="SiteVac")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# Pre-load index template to avoid sync I/O in async handler
+try:
+    with open("templates/index.html", "r") as _f:
+        INDEX_HTML_CONTENT = _f.read()
+except Exception as _e:
+    print(f"Error loading index template: {_e}")
+    INDEX_HTML_CONTENT = "<h1>SiteVac</h1><p>Template error.</p>"
+
 # In-memory job store (for Render free tier — single process)
 # For multi-worker, swap with Redis
 jobs: dict[str, dict] = {}
@@ -966,8 +974,7 @@ async def stripe_webhook(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    with open("templates/index.html") as f:
-        return f.read()
+    return INDEX_HTML_CONTENT
 
 @app.get("/success", response_class=HTMLResponse)
 async def success_page():
