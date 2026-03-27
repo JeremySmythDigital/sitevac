@@ -180,7 +180,20 @@ BOILERPLATE_MIN_CHARS = 80
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
 app = FastAPI(title="SiteVac")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+allowed_origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if os.getenv("BASE_URL"):
+    allowed_origins.append(os.getenv("BASE_URL").rstrip("/"))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # In-memory job store (for Render free tier — single process)
 # For multi-worker, swap with Redis
