@@ -137,7 +137,7 @@ def chunk_text_by_chars(text: str, target_tokens: int) -> list[str]:
 
     return chunks
 
-def emit_metric(event: str, **fields):
+def emit_metric(event: str, **fields) -> None:
     payload = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "event": event,
